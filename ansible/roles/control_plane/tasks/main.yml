@@ -1,0 +1,78 @@
+---
+# ============================================================
+# control_plane: kubeadm init + Calico + kubeconfig plumbing
+# ============================================================
+
+- name: Render kubeadm init configuration
+  ansible.builtin.template:
+    src: kubeadm-config.yaml.j2
+    dest: /root/kubeadm-config.yaml
+    mode: "0600"
+
+# The big one. 'creates:' makes this run exactly once — admin.conf only
+# exists after a successful init, so re-runs skip it entirely.
+- name: Run kubeadm init (first run only, ~2-4 min)
+  ansible.builtin.command: kubeadm init --config /root/kubeadm-config.yaml
+  args:
+    creates: /etc/kubernetes/admin.conf
+
+# --- kubeconfig for the deploy user on the server ----------------------------
+
+- name: Create .kube dir for deploy user
+  ansible.builtin.file:
+    path: /home/{{ deploy_user }}/.kube
+    state: directory
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0700"
+
+- name: Copy admin kubeconfig for deploy user
+  ansible.builtin.copy:
+    src: /etc/kubernetes/admin.conf
+    dest: /home/{{ deploy_user }}/.kube/config
+    remote_src: true
+    owner: "{{ deploy_user }}"
+    group: "{{ deploy_user }}"
+    mode: "0600"
+
+# --- Calico CNI (Tigera operator) -------------------------------------------
+# Until a CNI is installed, nodes stay NotReady and CoreDNS stays Pending.
+
+- name: Install Tigera operator (first run only)
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf create -f
+    https://raw.githubusercontent.com/projectcalico/calico/{{ calico_version }}/manifests/tigera-operator.yaml
+  register: tigera_result
+  changed_when: tigera_result.rc == 0
+  failed_when: tigera_result.rc != 0 and 'AlreadyExists' not in tigera_result.stderr
+
+- name: Render Calico installation spec
+  ansible.builtin.template:
+    src: calico-installation.yaml.j2
+    dest: /root/calico-installation.yaml
+    mode: "0644"
+
+- name: Apply Calico installation spec
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf apply -f /root/calico-installation.yaml
+  register: calico_apply
+  changed_when: "'unchanged' not in calico_apply.stdout"
+
+# --- Fetch kubeconfig to the workstation -------------------------------------
+
+- name: Fetch admin kubeconfig to ansible/kubeconfig/ (gitignored)
+  ansible.builtin.fetch:
+    src: /etc/kubernetes/admin.conf
+    dest: "{{ playbook_dir }}/../kubeconfig/admin.conf"
+    flat: true
+
+# admin.conf points at the PRIVATE apiserver IP (correct for in-cluster use).
+# The local copy must use the public IP so kubectl works from home. The public
+# IP is in the cert SANs (see kubeadm-config template), so TLS verifies fine.
+- name: Point local kubeconfig at the public IP
+  delegate_to: localhost
+  become: false
+  ansible.builtin.replace:
+    path: "{{ playbook_dir }}/../kubeconfig/admin.conf"
+    regexp: "https://{{ private_ip }}:6443"
+    replace: "https://{{ ansible_host }}:6443"

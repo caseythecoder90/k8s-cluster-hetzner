@@ -1,0 +1,12 @@
+---
+# Kubernetes prerequisites on every node (control plane AND worker):
+# kernel modules, sysctls, containerd, kubeadm/kubelet/kubectl packages.
+# Idempotent — safe to re-run anytime.
+#
+#   ansible-playbook playbooks/02-kube-prep.yml
+#
+- name: Prepare all nodes for Kubernetes
+  hosts: all
+  become: true
+  roles:
+    - kube_prep

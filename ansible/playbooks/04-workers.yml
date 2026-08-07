@@ -1,0 +1,11 @@
+---
+# Join worker nodes to the cluster. Generates a fresh join token on the
+# control plane, then runs kubeadm join on any worker not yet joined.
+#
+#   ansible-playbook playbooks/04-workers.yml
+#
+- name: Join workers to the cluster
+  hosts: workers
+  become: true
+  roles:
+    - worker

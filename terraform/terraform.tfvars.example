@@ -1,0 +1,13 @@
+# Copy to terraform.tfvars (gitignored) and adjust — OR skip this file
+# entirely and rely on the defaults in variables.tf + HCLOUD_TOKEN env var.
+
+# hcloud_token = "..."   # prefer: export HCLOUD_TOKEN=... in your shell
+
+# cluster_name       = "prod"
+# location           = "nbg1"
+# control_plane_type = "cx33"
+# worker_type        = "cx33"
+
+# Tighten these to your home IP for a quieter server (check: curl -4 ifconfig.me)
+# allowed_ssh_cidrs = ["203.0.113.7/32"]
+# allowed_api_cidrs = ["203.0.113.7/32"]

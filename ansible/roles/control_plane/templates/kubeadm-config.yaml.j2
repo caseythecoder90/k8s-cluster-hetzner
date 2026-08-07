@@ -1,0 +1,30 @@
+# Managed by Ansible (roles/control_plane). Rendered to /root/kubeadm-config.yaml.
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: InitConfiguration
+localAPIEndpoint:
+  # Advertise on the private network — all cluster-internal traffic
+  # (worker join, kubelet -> apiserver) stays off the public internet.
+  advertiseAddress: {{ private_ip }}
+nodeRegistration:
+  kubeletExtraArgs:
+    # Nodes register with their private IP (Hetzner private net interface)
+    - name: node-ip
+      value: "{{ private_ip }}"
+---
+apiVersion: kubeadm.k8s.io/v1beta4
+kind: ClusterConfiguration
+clusterName: {{ cluster_name }}
+# Resolves to the latest patch release of the pinned minor version
+kubernetesVersion: stable-{{ kubernetes_version }}
+networking:
+  podSubnet: {{ pod_cidr }}
+apiServer:
+  certSANs:
+    # Public IP included so kubectl from the workstation passes TLS verification
+    - {{ ansible_host }}
+    - {{ private_ip }}
+---
+apiVersion: kubelet.config.k8s.io/v1beta1
+kind: KubeletConfiguration
+# Must match containerd's SystemdCgroup=true (set in kube_prep role)
+cgroupDriver: systemd

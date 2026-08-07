@@ -1,0 +1,24 @@
+# Managed by Ansible (roles/control_plane).
+# Calico Installation CR, consumed by the Tigera operator.
+apiVersion: operator.tigera.io/v1
+kind: Installation
+metadata:
+  name: default
+spec:
+  calicoNetwork:
+    ipPools:
+      - name: default-ipv4-pool
+        blockSize: 26
+        cidr: {{ pod_cidr }}
+        # VXLAN works reliably on Hetzner private networks (IPIP can be
+        # flaky across cloud network fabrics). Slight overhead, zero drama.
+        encapsulation: VXLAN
+        natOutgoing: Enabled
+        nodeSelector: all()
+---
+# Enables the Calico API server so 'kubectl get' works on Calico resources
+apiVersion: operator.tigera.io/v1
+kind: APIServer
+metadata:
+  name: default
+spec: {}

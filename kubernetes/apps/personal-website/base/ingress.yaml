@@ -1,0 +1,19 @@
+# Requires ingress-nginx installed (see kubernetes/cluster/ingress-nginx/)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: personal-website
+spec:
+  ingressClassName: nginx
+  rules:
+    # TODO: your real domain; point its A record at the worker's public IP
+    - host: example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: personal-website
+                port:
+                  name: http

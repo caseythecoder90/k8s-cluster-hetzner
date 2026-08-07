@@ -1,0 +1,6 @@
+# Install with: ansible-galaxy collection install -r requirements.yml
+# (Already bundled if you installed the full "ansible" package rather than
+# "ansible-core" — running the install is harmless either way.)
+collections:
+  - name: ansible.posix
+  - name: community.general

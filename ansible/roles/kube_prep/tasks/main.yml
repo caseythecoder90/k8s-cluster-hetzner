@@ -1,0 +1,139 @@
+---
+# ============================================================
+# kube_prep: everything a node needs BEFORE kubeadm runs.
+# Mirrors the official "Installing kubeadm" docs, as code.
+# ============================================================
+
+# --- Swap must be off: kubelet refuses to start with swap enabled ------------
+# (Hetzner cloud images ship without swap; this is a guard in case one is added.)
+
+- name: Check for active swap
+  ansible.builtin.command: swapon --show
+  register: swap_status
+  changed_when: false
+
+- name: Disable swap now
+  ansible.builtin.command: swapoff -a
+  when: swap_status.stdout != ""
+
+- name: Remove swap entries from fstab (persist across reboots)
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1  # disabled for kubernetes'
+
+# --- Kernel modules ----------------------------------------------------------
+# overlay:       overlayfs, used by containerd for image layers
+# br_netfilter:  lets iptables see bridged (pod) traffic — required by kube-proxy
+
+- name: Load kernel modules at boot
+  ansible.builtin.copy:
+    dest: /etc/modules-load.d/kubernetes.conf
+    mode: "0644"
+    content: |
+      overlay
+      br_netfilter
+
+- name: Load kernel modules now
+  community.general.modprobe:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - overlay
+    - br_netfilter
+
+# --- Sysctls -----------------------------------------------------------------
+
+- name: Set networking sysctls required by Kubernetes
+  ansible.posix.sysctl:
+    name: "{{ item.name }}"
+    value: "{{ item.value }}"
+    sysctl_file: /etc/sysctl.d/99-kubernetes.conf
+    state: present
+    reload: true
+  loop:
+    - { name: net.bridge.bridge-nf-call-iptables, value: "1" }
+    - { name: net.bridge.bridge-nf-call-ip6tables, value: "1" }
+    - { name: net.ipv4.ip_forward, value: "1" }
+
+# --- containerd --------------------------------------------------------------
+
+- name: Install containerd
+  ansible.builtin.apt:
+    name: containerd
+    state: present
+
+- name: Create containerd config directory
+  ansible.builtin.file:
+    path: /etc/containerd
+    state: directory
+    mode: "0755"
+
+# Generate the full default config once, then patch the two values kubeadm
+# cares about. 'creates:' makes this a run-once task.
+- name: Generate default containerd config
+  ansible.builtin.shell: containerd config default > /etc/containerd/config.toml
+  args:
+    creates: /etc/containerd/config.toml
+
+# kubelet uses the systemd cgroup driver (set in kubeadm config); containerd
+# must match or pods will randomly restart under memory pressure.
+- name: "containerd: use systemd cgroup driver"
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'SystemdCgroup = false'
+    replace: 'SystemdCgroup = true'
+  notify: Restart containerd
+
+- name: "containerd: align pause image with kubeadm's expectation"
+  ansible.builtin.replace:
+    path: /etc/containerd/config.toml
+    regexp: 'sandbox_image = ".*"'
+    replace: 'sandbox_image = "{{ pause_image }}"'
+  notify: Restart containerd
+
+- name: Enable containerd
+  ansible.builtin.systemd:
+    name: containerd
+    state: started
+    enabled: true
+
+# --- kubeadm / kubelet / kubectl from pkgs.k8s.io ----------------------------
+# The repo URL embeds the minor version — bumping kubernetes_version in
+# group_vars switches repos (that's how minor upgrades start; see runbook).
+
+- name: Add Kubernetes apt signing key
+  ansible.builtin.shell: |
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/Release.key \
+      | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+  args:
+    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+
+- name: Add Kubernetes apt repository
+  ansible.builtin.apt_repository:
+    repo: >-
+      deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg]
+      https://pkgs.k8s.io/core:/stable:/v{{ kubernetes_version }}/deb/ /
+    filename: kubernetes
+    state: present
+
+- name: Install kubeadm, kubelet, kubectl
+  ansible.builtin.apt:
+    name:
+      - kubeadm
+      - kubelet
+      - kubectl
+    state: present
+    update_cache: true
+
+# Prevent unattended-upgrades / casual apt upgrade from bumping k8s packages.
+# Cluster upgrades must be deliberate: unhold -> upgrade kubeadm -> kubeadm
+# upgrade apply -> upgrade kubelet -> re-hold (see docs/runbook.md).
+- name: Hold Kubernetes packages at current version
+  ansible.builtin.dpkg_selections:
+    name: "{{ item }}"
+    selection: hold
+  loop:
+    - kubeadm
+    - kubelet
+    - kubectl

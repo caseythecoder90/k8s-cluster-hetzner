@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: personal-website
+  labels:
+    app: personal-website
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: personal-website
+  template:
+    metadata:
+      labels:
+        app: personal-website
+    spec:
+      containers:
+        - name: web
+          # TODO: replace with your real image (e.g. ghcr.io/caseythecoder90/personal-website:TAG)
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 80
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 15

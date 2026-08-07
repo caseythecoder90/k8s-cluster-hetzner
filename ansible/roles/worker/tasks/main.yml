@@ -1,0 +1,41 @@
+---
+# ============================================================
+# worker: join the node to the cluster
+# ============================================================
+
+- name: Check whether this node already joined
+  ansible.builtin.stat:
+    path: /etc/kubernetes/kubelet.conf
+  register: kubelet_conf
+
+# kubelet needs --node-ip on workers too (on the control plane kubeadm-config
+# handles it). Without this, the node may register with its public IP.
+- name: Set kubelet node-ip to the private address
+  ansible.builtin.copy:
+    dest: /etc/default/kubelet
+    mode: "0644"
+    content: |
+      KUBELET_EXTRA_ARGS=--node-ip={{ private_ip }}
+
+# Join tokens are short-lived (24h TTL) — generate a fresh one on demand
+# instead of storing one anywhere.
+- name: Generate join command on the control plane
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  ansible.builtin.command: kubeadm token create --print-join-command
+  register: join_command
+  changed_when: false
+  when: not kubelet_conf.stat.exists
+
+- name: Join the cluster (first run only, ~1 min)
+  ansible.builtin.command: "{{ join_command.stdout }}"
+  when: not kubelet_conf.stat.exists
+
+- name: Verify node registered
+  delegate_to: "{{ groups['control_plane'][0] }}"
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf get node {{ inventory_hostname }}
+  register: node_check
+  changed_when: false
+  retries: 6
+  delay: 10
+  until: node_check.rc == 0

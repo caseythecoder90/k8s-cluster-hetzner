@@ -1,0 +1,14 @@
+---
+# Base server setup: updates, deploy user, SSH hardening, fail2ban.
+#
+#   FIRST RUN (fresh servers — only root exists yet):
+#     ansible-playbook playbooks/01-base.yml -e ansible_user=root
+#
+#   AFTER that (root SSH is now disabled; deploy user has sudo):
+#     ansible-playbook playbooks/01-base.yml
+#
+- name: Base configuration for all nodes
+  hosts: all
+  become: true
+  roles:
+    - common

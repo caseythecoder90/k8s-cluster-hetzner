@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: habit-tracker
+  labels:
+    app: habit-tracker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: habit-tracker
+  template:
+    metadata:
+      labels:
+        app: habit-tracker
+    spec:
+      containers:
+        - name: app
+          # TODO: replace with your real image
+          image: nginx:1.27-alpine
+          ports:
+            - name: http
+              containerPort: 80 # TODO: your app's port
+          # TODO: config/secrets — e.g. database URL:
+          # envFrom:
+          #   - secretRef:
+          #       name: habit-tracker-secrets
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: / # TODO: health endpoint (e.g. /actuator/health)
+              port: http
+            initialDelaySeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+            initialDelaySeconds: 30

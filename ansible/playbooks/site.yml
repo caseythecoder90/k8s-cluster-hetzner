@@ -1,0 +1,11 @@
+---
+# One-shot: run everything in order. Individual playbooks (01-04) exist for
+# running steps separately while learning / debugging.
+#
+#   First ever run:  ansible-playbook playbooks/site.yml -e ansible_user=root
+#   Re-converge:     ansible-playbook playbooks/site.yml
+#
+- import_playbook: 01-base.yml
+- import_playbook: 02-kube-prep.yml
+- import_playbook: 03-control-plane.yml
+- import_playbook: 04-workers.yml

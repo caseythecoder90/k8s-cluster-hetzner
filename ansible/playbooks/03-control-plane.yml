@@ -1,0 +1,12 @@
+---
+# Bootstrap the control plane: kubeadm init, install Calico, set up
+# kubeconfig for the deploy user, and fetch an admin kubeconfig locally
+# to ansible/kubeconfig/admin.conf (gitignored).
+#
+#   ansible-playbook playbooks/03-control-plane.yml
+#
+- name: Initialize the Kubernetes control plane
+  hosts: control_plane
+  become: true
+  roles:
+    - control_plane

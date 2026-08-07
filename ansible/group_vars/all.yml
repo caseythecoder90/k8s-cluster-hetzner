@@ -1,0 +1,27 @@
+---
+# ============================================================
+# Cluster-wide settings. Single source of truth for versions.
+# ============================================================
+
+cluster_name: prod
+
+# --- Users / SSH ---
+deploy_user: deploy
+# Public key granted to the deploy user (same key root got from Terraform)
+deploy_ssh_public_key: "{{ lookup('file', '~/.ssh/hetzner_k8s.pub') }}"
+
+# --- Kubernetes ---
+# Minor version selects the apt repo at pkgs.k8s.io. Patch upgrades come via
+# apt within this repo; MINOR upgrades are a deliberate process (see runbook).
+kubernetes_version: "1.33"
+
+# --- Container runtime ---
+# kubeadm 1.33 expects this pause image; Ubuntu's containerd defaults to an
+# older one, which triggers a kubeadm warning if not aligned.
+pause_image: "registry.k8s.io/pause:3.10"
+
+# --- Calico CNI ---
+calico_version: "v3.30.0"
+# Pod network. Calico's default; must not overlap the node network (10.0.0.0/16)
+# or Kubernetes' service CIDR (10.96.0.0/12 by default).
+pod_cidr: "192.168.0.0/16"
