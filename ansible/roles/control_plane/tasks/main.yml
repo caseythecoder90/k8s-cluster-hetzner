@@ -46,6 +46,16 @@
   changed_when: tigera_result.rc == 0
   failed_when: tigera_result.rc != 0 and 'AlreadyExists' not in tigera_result.stderr
 
+# The operator manifest registers new CRDs (Installation, APIServer, ...).
+# The API server needs a few seconds before it can serve those types —
+# applying an Installation object too early fails with "no matches for kind".
+- name: Wait for Calico CRDs to be established
+  ansible.builtin.command: >-
+    kubectl --kubeconfig /etc/kubernetes/admin.conf wait
+    --for condition=established --timeout=60s
+    crd/installations.operator.tigera.io crd/apiservers.operator.tigera.io
+  changed_when: false
+
 - name: Render Calico installation spec
   ansible.builtin.template:
     src: calico-installation.yaml.j2
