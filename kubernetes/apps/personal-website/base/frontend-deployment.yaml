@@ -1,32 +1,31 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: personal-website
+  name: frontend
   labels:
-    app: personal-website
+    app: frontend
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: personal-website
+      app: frontend
   template:
     metadata:
       labels:
-        app: personal-website
+        app: frontend
     spec:
       containers:
-        - name: web
-          # TODO: replace with your real image (e.g. ghcr.io/caseythecoder90/personal-website:TAG)
-          image: nginx:1.27-alpine
+        - name: frontend
+          image: ghcr.io/caseythecoder90/personal-website-frontend:latest
           ports:
             - name: http
               containerPort: 80
           resources:
             requests:
-              cpu: 50m
-              memory: 64Mi
+              cpu: 25m
+              memory: 32Mi
             limits:
-              memory: 256Mi
+              memory: 128Mi
           readinessProbe:
             httpGet:
               path: /

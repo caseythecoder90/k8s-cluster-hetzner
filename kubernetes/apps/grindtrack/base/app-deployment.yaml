@@ -1,0 +1,82 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grindtrack
+  labels:
+    app: grindtrack
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grindtrack
+  template:
+    metadata:
+      labels:
+        app: grindtrack
+    spec:
+      containers:
+        - name: app
+          # Single image: Spring Boot serving its own built-in React SPA
+          image: ghcr.io/caseythecoder90/grindtrack:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            # POSTGRES_DB must be defined BEFORE the URL: $(VAR) expansion
+            # only sees env vars declared earlier in this list.
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: POSTGRES_DB
+            - name: SPRING_DATASOURCE_URL
+              value: jdbc:postgresql://postgres:5432/$(POSTGRES_DB)
+            - name: SPRING_DATASOURCE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: POSTGRES_USER
+            - name: SPRING_DATASOURCE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: POSTGRES_PASSWORD
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: JWT_SECRET
+            - name: GRINDTRACK_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: GRINDTRACK_USERNAME
+            - name: GRINDTRACK_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: GRINDTRACK_PASSWORD
+            # Behind TLS at the ingress, same as behind the old edge proxy
+            - name: COOKIE_SECURE
+              value: "true"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx256m -Xms64m"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              memory: 512Mi
+          # Same endpoint the compose healthcheck used
+          readinessProbe:
+            httpGet:
+              path: /api/public/stats
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /api/public/stats
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 30

@@ -1,0 +1,30 @@
+# Replaces edge-proxy track.conf: track.caseyrquinn.com -> grindtrack:8080
+#
+# Note on the rate limiter: the old track.conf deliberately OVERWROTE
+# X-Forwarded-For with the real client IP so clients can't spoof an earlier
+# hop. ingress-nginx's default behavior is the same (XFF = client IP as seen
+# by nginx) — do not enable compute-full-forwarded-for, it would trust
+# client-supplied XFF and reopen that hole.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: grindtrack
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - track.caseyrquinn.com
+      secretName: track-caseyrquinn-com-tls
+  rules:
+    - host: track.caseyrquinn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: grindtrack
+                port:
+                  name: http

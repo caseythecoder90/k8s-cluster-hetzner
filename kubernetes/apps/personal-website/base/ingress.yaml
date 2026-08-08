@@ -1,19 +1,47 @@
-# Requires ingress-nginx installed (see kubernetes/cluster/ingress-nginx/)
+# Replaces the edge-proxy nginx configs (site.conf + api.conf):
+#   caseyrquinn.com       -> frontend service
+#   www.caseyrquinn.com   -> 308 redirect to apex (from-to-www-redirect)
+#   api.caseyrquinn.com   -> backend service
+# TLS certs come from cert-manager/Let's Encrypt (replaces certbot);
+# the cluster-issuer annotation triggers issuance into the named secrets.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: personal-website
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # redirects www.<host> to <host> (needs www in the TLS cert, listed below)
+    nginx.ingress.kubernetes.io/from-to-www-redirect: "true"
+    # was client_max_body_size 15M in the old api.conf (resume/image uploads)
+    nginx.ingress.kubernetes.io/proxy-body-size: 15m
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+        - caseyrquinn.com
+        - www.caseyrquinn.com
+      secretName: caseyrquinn-com-tls
+    - hosts:
+        - api.caseyrquinn.com
+      secretName: api-caseyrquinn-com-tls
   rules:
-    # TODO: your real domain; point its A record at the worker's public IP
-    - host: example.com
+    - host: caseyrquinn.com
       http:
         paths:
           - path: /
             pathType: Prefix
             backend:
               service:
-                name: personal-website
+                name: frontend
+                port:
+                  name: http
+    - host: api.caseyrquinn.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
                 port:
                   name: http

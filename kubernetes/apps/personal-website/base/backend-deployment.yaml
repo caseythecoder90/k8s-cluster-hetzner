@@ -1,0 +1,52 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    app: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: backend
+  template:
+    metadata:
+      labels:
+        app: backend
+    spec:
+      # Backend image is private on GHCR — see docs/05-app-migration.md for
+      # creating this pull secret (GitHub PAT with read:packages only).
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: backend
+          image: ghcr.io/caseythecoder90/personal-website-backend:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          # Mirrors the old .env file 1:1 — every key becomes an env var.
+          # Hostnames inside (postgres, redis) resolve to the Services below,
+          # which are named to match the old compose service names exactly.
+          envFrom:
+            - secretRef:
+                name: personal-website-secrets
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          # Same endpoint the compose healthcheck used
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: http
+            # generous: JVM + Flyway migrations need time on cold start
+            initialDelaySeconds: 60
+            periodSeconds: 30

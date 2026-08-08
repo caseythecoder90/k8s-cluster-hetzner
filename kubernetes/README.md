@@ -16,8 +16,9 @@ apps/             One directory per application
 ```bash
 kubectl apply -k kubernetes/cluster/namespaces
 # install ingress controller — see cluster/ingress-nginx/README.md
+# install storage + cert-manager — see their READMEs; full order: docs/05-app-migration.md
 kubectl apply -k kubernetes/apps/personal-website/overlays/prod
-kubectl apply -k kubernetes/apps/habit-tracker/overlays/prod
+kubectl apply -k kubernetes/apps/grindtrack/overlays/prod
 ```
 
 Preview what any kustomization renders without applying:
