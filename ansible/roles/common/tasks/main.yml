@@ -22,6 +22,43 @@
       - ca-certificates
     state: present
 
+# --- Hetzner private network ------------------------------------------------
+# Sometimes the private NIC appears just after cloud-init writes its network
+# config, so 50-cloud-init.yaml has no stanza for it and the link stays DOWN
+# forever — nodes then can't reach the API server on the private network.
+# Only acts on a node that actually has the interface unconfigured, so healthy
+# nodes are untouched (no netplan apply, no network blip).
+
+- name: Configure Hetzner private network interface (if left unconfigured)
+  when:
+    - "'enp7s0' in ansible_interfaces"
+    - ansible_facts['enp7s0']['ipv4'] is not defined
+  block:
+    - name: Write netplan config for private interface
+      ansible.builtin.copy:
+        dest: /etc/netplan/60-hetzner-private.yaml
+        mode: "0600"
+        content: |
+          network:
+            version: 2
+            ethernets:
+              enp7s0:
+                dhcp4: true
+
+    - name: Apply netplan
+      ansible.builtin.command: netplan apply
+
+    - name: Wait for the private address to appear
+      ansible.builtin.command: ip -4 addr show enp7s0
+      register: priv_addr
+      retries: 10
+      delay: 3
+      until: "'inet ' in priv_addr.stdout"
+      changed_when: false
+
+    - name: Re-gather facts so later plays see the new address
+      ansible.builtin.setup:
+
 # --- deploy user -------------------------------------------------------------
 
 - name: Create the deploy user
