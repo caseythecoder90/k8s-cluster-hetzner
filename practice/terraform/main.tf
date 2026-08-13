@@ -39,6 +39,18 @@ variable "node_type" {
   default     = "cx23"
 }
 
+variable "worker_type" {
+  description = "Worker-only override for when node_type is out of stock. Null = use node_type. Changing this must NOT rebuild the control plane."
+  type        = string
+  default     = null
+}
+
+variable "worker_location" {
+  description = "Worker-only location override. Must stay inside the eu-central network zone (nbg1/fsn1/hel1) or the private network can't reach it."
+  type        = string
+  default     = null
+}
+
 variable "ssh_public_key_path" {
   type    = string
   default = "~/.ssh/hetzner_k8s.pub"
@@ -119,10 +131,12 @@ resource "hcloud_server" "control_plane" {
 }
 
 resource "hcloud_server" "worker" {
-  name         = "${var.cluster_name}-worker-1"
-  server_type  = var.node_type
+  name = "${var.cluster_name}-worker-1"
+  # coalesce = "first non-null": the overrides let you dodge a stock outage
+  # on the worker without rebuilding the control plane.
+  server_type  = coalesce(var.worker_type, var.node_type)
   image        = var.image
-  location     = var.location
+  location     = coalesce(var.worker_location, var.location)
   ssh_keys     = [data.hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.lab.id]
   labels       = { cluster = var.cluster_name, role = "worker" }
