@@ -90,9 +90,12 @@ resource "hcloud_firewall" "lab" {
   }
 }
 
-resource "hcloud_ssh_key" "admin" {
-  name       = "${var.cluster_name}-admin"
-  public_key = file(pathexpand(var.ssh_public_key_path))
+# The same public key can only be uploaded once per Hetzner project, and
+# prod's Terraform already owns it under the name "prod-admin". A data source
+# references that existing upload instead of creating a duplicate.
+# (Consequence: prod's key must exist for lab applies — fine, prod outlives lab.)
+data "hcloud_ssh_key" "admin" {
+  name = "prod-admin"
 }
 
 resource "hcloud_server" "control_plane" {
@@ -100,7 +103,7 @@ resource "hcloud_server" "control_plane" {
   server_type  = var.node_type
   image        = var.image
   location     = var.location
-  ssh_keys     = [hcloud_ssh_key.admin.id]
+  ssh_keys     = [data.hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.lab.id]
   labels       = { cluster = var.cluster_name, role = "control-plane" }
 
@@ -120,7 +123,7 @@ resource "hcloud_server" "worker" {
   server_type  = var.node_type
   image        = var.image
   location     = var.location
-  ssh_keys     = [hcloud_ssh_key.admin.id]
+  ssh_keys     = [data.hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.lab.id]
   labels       = { cluster = var.cluster_name, role = "worker" }
 
