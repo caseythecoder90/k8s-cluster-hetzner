@@ -1,0 +1,11 @@
+---
+# Full lab bring-up. Run with ANSIBLE_CONFIG pointing at practice/ansible/
+# (see practice/README.md):
+#
+#   ansible-playbook playbooks/site.yml -e ansible_user=root
+#
+- import_playbook: 01-base.yml
+- import_playbook: 02-kube-prep.yml
+- import_playbook: 03-control-plane.yml
+- import_playbook: 04-workers.yml
+- import_playbook: 05-lab-setup.yml

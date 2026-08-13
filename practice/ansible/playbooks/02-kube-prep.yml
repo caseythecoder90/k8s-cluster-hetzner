@@ -1,0 +1,6 @@
+---
+- name: Prepare all lab nodes for Kubernetes
+  hosts: all
+  become: true
+  roles:
+    - kube_prep

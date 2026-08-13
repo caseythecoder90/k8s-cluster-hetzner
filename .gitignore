@@ -18,6 +18,15 @@ ansible/inventory/hosts.yml
 # Fetched cluster credentials — full admin access, never commit
 ansible/kubeconfig/
 
+# --- Practice lab ---
+practice/ansible/inventory/hosts.yml
+practice/ansible/kubeconfig/
+# killer.sh questions are copyrighted — scenarios stay local-only, never pushed
+practice/scenarios/
+
+# --- Database dumps (real user data, never commit) ---
+*.dump
+
 # --- Secrets, always ---
 *.pem
 *.key

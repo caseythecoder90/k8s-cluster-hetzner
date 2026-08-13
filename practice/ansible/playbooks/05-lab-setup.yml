@@ -1,0 +1,32 @@
+---
+# Lab-only conveniences that prod deliberately does NOT get.
+- name: CKAD exam environment setup
+  hosts: control_plane
+  become: true
+  tasks:
+    # Two schedulable nodes, like the killer.sh environment
+    - name: Remove control-plane taint (pods may schedule anywhere)
+      ansible.builtin.command: >-
+        kubectl --kubeconfig /etc/kubernetes/admin.conf taint nodes --all
+        node-role.kubernetes.io/control-plane:NoSchedule-
+      register: untaint
+      changed_when: untaint.rc == 0
+      failed_when: untaint.rc != 0 and 'not found' not in untaint.stderr
+
+    - name: Install helm (CKAD includes helm tasks)
+      ansible.builtin.shell: |
+        curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+      args:
+        creates: /usr/local/bin/helm
+
+    # The exam terminal ships with these; train with the same muscle memory
+    - name: Exam-style shell setup for deploy user
+      ansible.builtin.blockinfile:
+        path: /home/{{ deploy_user }}/.bashrc
+        marker: "# {mark} CKAD exam shell setup"
+        block: |
+          alias k=kubectl
+          source <(kubectl completion bash)
+          complete -o default -F __start_kubectl k
+          export do="--dry-run=client -o yaml"    # k run x --image=nginx $do
+          export now="--force --grace-period=0"   # k delete pod x $now

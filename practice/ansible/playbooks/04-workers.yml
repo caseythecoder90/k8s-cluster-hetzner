@@ -1,0 +1,6 @@
+---
+- name: Join lab workers
+  hosts: workers
+  become: true
+  roles:
+    - worker

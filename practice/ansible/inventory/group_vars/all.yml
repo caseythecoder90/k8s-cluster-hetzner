@@ -1,0 +1,13 @@
+---
+# Lab cluster settings — mirrors prod's group_vars, lab-specific values.
+cluster_name: lab
+
+deploy_user: deploy
+deploy_ssh_public_key: "{{ lookup('file', '~/.ssh/hetzner_k8s.pub') }}"
+
+# Match the CKAD exam's Kubernetes version when it differs from prod
+kubernetes_version: "1.33"
+
+pause_image: "registry.k8s.io/pause:3.10"
+calico_version: "v3.30.0"
+pod_cidr: "192.168.0.0/16"

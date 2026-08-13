@@ -14,8 +14,6 @@ spec:
       labels:
         app: backend
     spec:
-      # Backend image is private on GHCR — see docs/05-app-migration.md for
-      # creating this pull secret (GitHub PAT with read:packages only).
       imagePullSecrets:
         - name: ghcr-pull
       containers:
@@ -24,9 +22,6 @@ spec:
           ports:
             - name: http
               containerPort: 8080
-          # Mirrors the old .env file 1:1 — every key becomes an env var.
-          # Hostnames inside (postgres, redis) resolve to the Services below,
-          # which are named to match the old compose service names exactly.
           envFrom:
             - secretRef:
                 name: personal-website-secrets
