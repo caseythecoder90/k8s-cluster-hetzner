@@ -1,0 +1,105 @@
+# Least-privilege identity for GitHub Actions to roll out new images.
+#
+# Deliberately NOT the admin kubeconfig: a leaked CI credential should not be
+# able to read Secrets or touch other namespaces. This can update the image on
+# existing Deployments in its own namespace and watch the rollout — nothing else.
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: personal-website
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-deployer
+  namespace: personal-website
+rules:
+  # patch = `kubectl set image`; get/list/watch = `kubectl rollout status`
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  # read-only pod access so a failed rollout can be diagnosed from CI logs
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer
+  namespace: personal-website
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: personal-website
+roleRef:
+  kind: Role
+  name: ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+# Since k8s 1.24 ServiceAccounts get no automatic Secret. This one is a
+# long-lived token for CI (the alternative, `kubectl create token`, expires).
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-token
+  namespace: personal-website
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer
+type: kubernetes.io/service-account-token
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: grindtrack
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-deployer
+  namespace: grindtrack
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer
+  namespace: grindtrack
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: grindtrack
+roleRef:
+  kind: Role
+  name: ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-token
+  namespace: grindtrack
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer
+type: kubernetes.io/service-account-token
