@@ -23,6 +23,7 @@ practice/ansible/inventory/hosts.yml
 practice/ansible/kubeconfig/
 # killer.sh questions are copyrighted — scenarios stay local-only, never pushed
 practice/scenarios/
+practice/scenarios2/
 
 # --- Database dumps (real user data, never commit) ---
 *.dump
