@@ -78,10 +78,12 @@
 
 # --- Fetch kubeconfig to the workstation -------------------------------------
 
+# kubeconfig_dest is overridable (-e kubeconfig_dest=...) so a second lab
+# cluster can be fetched next to the first instead of overwriting it.
 - name: Fetch admin kubeconfig to ansible/kubeconfig/ (gitignored)
   ansible.builtin.fetch:
     src: /etc/kubernetes/admin.conf
-    dest: "{{ playbook_dir }}/../kubeconfig/admin.conf"
+    dest: "{{ kubeconfig_dest | default(playbook_dir ~ '/../kubeconfig/admin.conf') }}"
     flat: true
 
 # admin.conf points at the PRIVATE apiserver IP (correct for in-cluster use).
@@ -91,6 +93,6 @@
   delegate_to: localhost
   become: false
   ansible.builtin.replace:
-    path: "{{ playbook_dir }}/../kubeconfig/admin.conf"
+    path: "{{ kubeconfig_dest | default(playbook_dir ~ '/../kubeconfig/admin.conf') }}"
     regexp: "https://{{ private_ip }}:6443"
     replace: "https://{{ ansible_host }}:6443"

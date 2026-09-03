@@ -45,11 +45,55 @@ state from `scenarios/` next session.
 
 ## Scenarios
 
-`scenarios/` holds one directory per exam question: `setup.sh` (pre-creates
-the question's starting state), `TASK.md` (the assignment), `solution.md`
-(read only after attempting), `verify.sh` where applicable. The directory is
-**gitignored** — killer.sh questions are copyrighted; they stay local-only.
+Each set holds one directory per exam question: `setup.sh` (pre-creates the
+question's starting state), `TASK.md` (the assignment), `solution.md` (read
+only after attempting), `verify.sh` where applicable.
+
+Four sets so far, all runnable on the same cluster at once (each uses its own
+`/courseN` paths and Namespace family). The two killer.sh rebuilds are
+copyrighted material and stay **gitignored, local-only**; the two original
+sets are committed:
+
+| Set | What | Namespaces | In git? |
+|---|---|---|---|
+| `scenarios/` | killer.sh attempt 1, rebuilt | planets | no |
+| `scenarios2/` | original set filling attempt 1's topic gaps | planets | yes |
+| `scenarios3/` | killer.sh attempt 2, rebuilt | trees | no |
+| `scenarios4/` | original set, **Helm + Kustomize only** (16 questions) | gemstones | yes |
 
 Timed run: pick questions, run their `setup.sh`, start a timer, work in a
 plain SSH session on the control plane like the real exam (not your cozy
 local terminal).
+
+## A second lab next to the first (optional)
+
+The Terraform config is workspace-aware: every workspace other than
+`default` gets its own state and its own names (`lab-<workspace>-cp-1`,
+`hosts-<workspace>.yml`), so a second cluster can run beside the normal lab
+without touching it.
+
+```bash
+cd practice/terraform
+terraform workspace new hk            # creates AND selects it...
+terraform workspace select default    # ...so switch back: a bare `terraform destroy` must keep meaning the normal lab
+TF_WORKSPACE=hk terraform apply -var ipv6_enabled=false
+cd ../ansible
+ansible-playbook -i inventory/hosts-hk.yml playbooks/site.yml \
+  -e ansible_user=root -e cluster_name=lab-hk -e kubeconfig_dest=$PWD/kubeconfig/admin-hk.conf
+```
+
+Then `LAB_WORKSPACE=hk ./setup-all.sh` in a scenario set, and
+`TF_WORKSPACE=hk terraform destroy -var ipv6_enabled=false` when done.
+
+**Account limits (checked 2026-09-03):** this Hetzner project allows 5 servers
+and 8 Primary IPs. With prod (2 servers, 4 IPs) and the normal lab (2, 4)
+running, a second lab does not fit — the apply fails with *server limit
+reached* / *Primary IP limit exceeded*. Either request a limit increase in
+the Hetzner Console (Limits), or destroy the normal lab first, in which case
+you don't need a second workspace at all. `ipv6_enabled=false` exists because
+each address family costs a Primary IP; nothing in the lab uses IPv6.
+
+Hetzner recycles IPs, so a rebuilt cluster can come up on an address whose
+old host key is still in `~/.ssh/known_hosts`. Clear it before Ansible:
+`ssh-keygen -R <ip>` (and `-f ~/.ssh/known_hosts_lab` for the scenario
+scripts' own file).
