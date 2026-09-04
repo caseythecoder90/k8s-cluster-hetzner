@@ -1,5 +1,9 @@
 # 04 — Deploy workloads (Kustomize)
 
+> Written before the migration as the generic Kustomize workflow. The order
+> that was actually followed, with the real namespaces (`personal-website`,
+> `grindtrack`), secrets and databases, is [05-app-migration.md](05-app-migration.md).
+
 ## Foundations
 
 ```bash
@@ -16,7 +20,7 @@ binds 80/443):
 
 ```
 yourdomain.com        A   <worker-public-ip>
-habits.yourdomain.com A   <worker-public-ip>
+track.yourdomain.com  A   <worker-public-ip>
 ```
 
 ## Migrating your apps
@@ -45,7 +49,7 @@ Per app, in `kubernetes/apps/<app>/`:
 
 ## Databases
 
-If the habit tracker needs Postgres, options in order of pragmatism:
+GrindTrack uses Postgres. Options, in order of pragmatism:
 
 1. **Managed elsewhere** (keep whatever it uses today) — zero cluster risk.
 2. **In-cluster** with a PVC on `local-path` storage — fine for personal
@@ -66,5 +70,5 @@ kubectl patch storageclass local-path -p '{"metadata":{"annotations":{"storagecl
 kubectl -n apps rollout status deploy/personal-website
 kubectl -n apps logs deploy/personal-website -f
 kubectl -n apps rollout undo deploy/personal-website   # rollback
-kubectl kustomize kubernetes/apps/habit-tracker/overlays/prod   # dry-render
+kubectl kustomize kubernetes/apps/grindtrack/overlays/prod   # dry-render
 ```

@@ -18,6 +18,16 @@ terraform {
 
 provider "hcloud" {} # HCLOUD_TOKEN env var
 
+# A second lab next to the first: `terraform workspace new <name>` gives that
+# workspace its own state, and everything below derives from the workspace so
+# nothing collides with the default lab. Workspace "hk" => cluster "lab-hk",
+# servers lab-hk-cp-1 / lab-hk-worker-1, inventory hosts-hk.yml.
+# The default workspace keeps the original names, so existing state is untouched.
+locals {
+  cluster_name = terraform.workspace == "default" ? var.cluster_name : "${var.cluster_name}-${terraform.workspace}"
+  inventory    = terraform.workspace == "default" ? "hosts.yml" : "hosts-${terraform.workspace}.yml"
+}
+
 variable "cluster_name" {
   type    = string
   default = "lab"
@@ -51,13 +61,19 @@ variable "worker_location" {
   default     = null
 }
 
+variable "ipv6_enabled" {
+  description = "Public IPv6 on both nodes. Each enabled address family costs a Hetzner Primary IP and the project has a Primary IP limit, so a second lab next to the first only fits IPv4-only (-var ipv6_enabled=false). Nothing in the lab uses IPv6."
+  type        = bool
+  default     = true
+}
+
 variable "ssh_public_key_path" {
   type    = string
   default = "~/.ssh/hetzner_k8s.pub"
 }
 
 resource "hcloud_network" "lab" {
-  name     = "${var.cluster_name}-net"
+  name     = "${local.cluster_name}-net"
   ip_range = "10.10.0.0/16"
 }
 
@@ -69,7 +85,7 @@ resource "hcloud_network_subnet" "nodes" {
 }
 
 resource "hcloud_firewall" "lab" {
-  name = "${var.cluster_name}-fw"
+  name = "${local.cluster_name}-fw"
 
   rule {
     description = "ICMP"
@@ -111,17 +127,17 @@ data "hcloud_ssh_key" "admin" {
 }
 
 resource "hcloud_server" "control_plane" {
-  name         = "${var.cluster_name}-cp-1"
+  name         = "${local.cluster_name}-cp-1"
   server_type  = var.node_type
   image        = var.image
   location     = var.location
   ssh_keys     = [data.hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.lab.id]
-  labels       = { cluster = var.cluster_name, role = "control-plane" }
+  labels       = { cluster = local.cluster_name, role = "control-plane" }
 
   public_net {
     ipv4_enabled = true
-    ipv6_enabled = true
+    ipv6_enabled = var.ipv6_enabled
   }
   network {
     network_id = hcloud_network.lab.id
@@ -131,7 +147,7 @@ resource "hcloud_server" "control_plane" {
 }
 
 resource "hcloud_server" "worker" {
-  name = "${var.cluster_name}-worker-1"
+  name = "${local.cluster_name}-worker-1"
   # coalesce = "first non-null": the overrides let you dodge a stock outage
   # on the worker without rebuilding the control plane.
   server_type  = coalesce(var.worker_type, var.node_type)
@@ -139,11 +155,11 @@ resource "hcloud_server" "worker" {
   location     = coalesce(var.worker_location, var.location)
   ssh_keys     = [data.hcloud_ssh_key.admin.id]
   firewall_ids = [hcloud_firewall.lab.id]
-  labels       = { cluster = var.cluster_name, role = "worker" }
+  labels       = { cluster = local.cluster_name, role = "worker" }
 
   public_net {
     ipv4_enabled = true
-    ipv6_enabled = true
+    ipv6_enabled = var.ipv6_enabled
   }
   network {
     network_id = hcloud_network.lab.id
@@ -154,10 +170,10 @@ resource "hcloud_server" "worker" {
 
 # Reuses the prod inventory template — same Ansible roles, different targets
 resource "local_file" "ansible_inventory" {
-  filename        = "${path.module}/../ansible/inventory/hosts.yml"
+  filename        = "${path.module}/../ansible/inventory/${local.inventory}"
   file_permission = "0644"
   content = templatefile("${path.module}/../../terraform/templates/hosts.yml.tpl", {
-    cluster_name      = var.cluster_name
+    cluster_name      = local.cluster_name
     cp_public_ip      = hcloud_server.control_plane.ipv4_address
     cp_private_ip     = "10.10.1.10"
     worker_public_ip  = hcloud_server.worker.ipv4_address
