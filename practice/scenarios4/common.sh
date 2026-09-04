@@ -70,6 +70,26 @@ fingerprint() { local l=$1; shift; $SSH_CP "sudo mkdir -p /course4/_check && sud
 # unchanged <label> <remote files...>  — true if they still match
 unchanged()   { local l=$1; shift; $SSH_CP "[[ \$(cat $* 2>/dev/null | md5sum | cut -d' ' -f1) == \$(cat /course4/_check/$l.md5) ]]"; }
 
+# helm_value <ns> <release> <dotted.path>  — one user-supplied value of a
+# release, printed as text. YAML quoting is not significant here: a values file
+# may legitimately write `nodePort: "30402"` (the chart's own default for that
+# key is an empty string) or `nodePort: 30402`, and both come back as 30402.
+# That is why this parses the JSON instead of grepping it.
+helm_value() {
+  $SSH_CP "helm -n $1 get values $2 -o json 2>/dev/null" | python3 -c '
+import sys, json
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
+for k in sys.argv[1].split("."):
+    if not isinstance(d, dict) or k not in d:
+        sys.exit(0)
+    d = d[k]
+print(d)
+' "$3" 2>/dev/null || true
+}
+
 # helm_field <ns> <release> <field>  — one column of `helm ls -a` for one
 # release: status | chart | revision | app_version. Empty if the release is gone.
 helm_field() {
