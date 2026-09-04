@@ -21,11 +21,12 @@ stype=$(kubectl -n beryl get svc beryl-api -o jsonpath='{.spec.type}' 2>/dev/nul
 nport=$(kubectl -n beryl get svc beryl-api -o jsonpath='{.spec.ports[0].nodePort}' 2>/dev/null)
 [[ "$stype" == "NodePort" && "$nport" == "30402" ]] && pass "Service NodePort 30402" || fail "Service is type='$stype' nodePort='$nport' (expected NodePort/30402)"
 
-# "via Helm values" — the values must be recorded in the release, not patched in with kubectl
-uv=$($SSH_CP "helm -n beryl get values beryl-api -o json 2>/dev/null" || true)
-echo "$uv" | grep -q '"replicaCount":3' && echo "$uv" | grep -q '"nodePort":30402' \
-  && pass "values were set through Helm (helm get values shows them)" \
-  || fail "helm get values does not show replicaCount=3 and nodePort=30402 — set them via Helm, not kubectl"
+# "via Helm values" — the values must be recorded in the release, not patched in
+# with kubectl afterwards. Checked one field at a time so a failure says which.
+rc=$(helm_value beryl beryl-api replicaCount)
+[[ "$rc" == "3" ]] && pass "helm get values records replicaCount=3" || fail "helm get values shows replicaCount='$rc' (expected 3) — set it via Helm, not kubectl"
+np=$(helm_value beryl beryl-api service.nodePort)
+[[ "$np" == "30402" ]] && pass "helm get values records service.nodePort=30402" || fail "helm get values shows service.nodePort='$np' (expected 30402) — set it via Helm, not kubectl"
 
 $SSH_CP "curl -s -m 5 http://10.10.1.10:30402" | grep -q "Welcome to nginx" && pass "answers on :30402" || fail "nothing answers on 10.10.1.10:30402"
 
