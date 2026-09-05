@@ -37,11 +37,48 @@ taint removed, helm installed, and exam-style shell setup for the deploy user
 ## Session end
 
 ```bash
-cd practice/terraform && terraform destroy
+./practice/scripts/lab-down.sh          # add --yes to skip terraform's prompts
 ```
+
+Use this instead of a bare `terraform destroy`. That command only tears down
+the workspace you currently have selected, says nothing about the workspaces
+you forgot, and reports success from Terraform state alone — so a resource
+that drifted out of state stays up, and stays billed. `lab-down.sh` destroys
+**every** workspace, then asks the Hetzner API what is actually still running
+and exits non-zero if anything `lab-`-prefixed survived. It also clears the
+leftovers that mislead you next session: the kubeconfig for a cluster that no
+longer exists, and the host keys of IPs Hetzner has already recycled.
+
+It never deletes through the API — Terraform is the only thing that destroys.
+
+```bash
+./practice/scripts/lab-down.sh --status   # what is up, for how long, what it cost
+```
+
+`--status` only reads the API, so it needs no Terraform and no state — run it
+from any machine. Exit code is 0 when the lab is down and 2 when it is up,
+which makes it usable from a shell prompt or a cron nag. It warns past
+`LAB_MAX_HOURS` (default 8), and always lists unmanaged resources — running
+servers matching neither `lab-` nor `prod-`, detached Volumes, old snapshots,
+unassigned Primary IPs. These bill until you delete them by hand and
+Terraform can never clean them up, because it never created them.
+
+That last part is where the money actually went. On invoice 082001141468
+(08/2026, $50.96) the lab was **$9.29** and prod **$18.82**, while **$20.01**
+was servers neither Terraform config manages — 2x CPX11 in this project and a
+CPX21 in a second Hetzner project. Teardown discipline is worth ~$9/month;
+knowing what else is running was worth twice that.
+
+**One project at a time.** A Hetzner token is scoped to a single project, so
+`--status` only ever sees the project its `HCLOUD_TOKEN` belongs to. Run it
+once per project token to cover an account with more than one.
 
 Nothing worth keeping lives on the cluster — scenarios re-create their own
 state from `scenarios/` next session.
+
+**Stopping a server does not stop the bill.** Hetzner charges for a server
+existing, not running, and for Primary IPs even while unassigned. Destroy is
+the only teardown that saves money.
 
 ## Scenarios
 
