@@ -36,8 +36,13 @@ TF_DIR="$PRACTICE_DIR/terraform"
 # lab. Prod is `prod-`, so this prefix cannot match it.
 LAB_PREFIX="${LAB_PREFIX:-lab-}"
 
-# practice/README.md: "2x CX23 (~2 cents/hour for the pair)". Approximate and
-# only used for the nudge below — the invoice is the source of truth.
+# Name prefixes this repo's two Terraform configs own. A running server whose
+# name matches neither is unmanaged: nothing here can destroy it, and it bills
+# until you delete it by hand. The Aug 2026 invoice was 40% exactly that.
+MANAGED_PREFIXES="${MANAGED_PREFIXES:-lab- prod-}"
+
+# practice/README.md says "~2 cents/hour for the pair", and invoice 082001141468
+# confirms it: CX23 at $0.0104/server-hour, so $0.0208 for the two nodes.
 LAB_HOURLY_CENTS="${LAB_HOURLY_CENTS:-2}"
 LAB_MAX_HOURS="${LAB_MAX_HOURS:-8}"
 
@@ -97,6 +102,21 @@ lab_rows() {
 # they bill until you delete them by hand. An unassigned Primary IP and a
 # detached Volume both cost money while attached to nothing.
 strays() {
+  api "servers?per_page=50" | python3 -c '
+import sys, json, datetime
+managed = sys.argv[1].split()
+now = datetime.datetime.now(datetime.timezone.utc)
+for s in json.load(sys.stdin).get("servers", []):
+    name = s.get("name") or ""
+    if any(name.startswith(p) for p in managed):
+        continue
+    hours = 0.0
+    if s.get("created"):
+        t = datetime.datetime.fromisoformat(s["created"].replace("Z", "+00:00"))
+        hours = (now - t).total_seconds() / 3600.0
+    print("  server    %-28s %-8s up %5.0f h  %s" % (
+        name, (s.get("server_type") or {}).get("name", "?"), hours,
+        ((s.get("public_net") or {}).get("ipv4") or {}).get("ip") or ""))' "$MANAGED_PREFIXES"
   api "volumes?per_page=50" | python3 -c '
 import sys, json
 for v in json.load(sys.stdin).get("volumes", []):
@@ -117,7 +137,8 @@ for p in json.load(sys.stdin).get("primary_ips", []):
 # heading reads like the check silently failed.
 strays_report() {
   local out; out="$(strays)"
-  echo "Unmanaged resources (never created by Terraform — delete by hand if unused):"
+  echo "Unmanaged in THIS Hetzner project (not created by either Terraform config,"
+  echo "so nothing here can destroy them — they bill until deleted by hand):"
   [[ -n "$out" ]] && printf '%s\n' "$out" || echo "  (none)"
 }
 
@@ -144,12 +165,13 @@ report() {
 ROWS="$(lab_rows)"
 
 if [[ "$STATUS_ONLY" == 1 ]]; then
-  if report "$ROWS"; then
-    echo
-    strays_report
-    exit 2   # 2 = lab is up, so this is usable from a shell prompt or cron
-  fi
-  exit 0
+  # Always report strays, lab up or down: an unmanaged server bills exactly the
+  # same either way, and a torn-down lab is the likeliest moment to be looking.
+  # Exit 2 = lab is up, so this is usable from a shell prompt or a cron nag.
+  if report "$ROWS"; then LAB_UP=2; else LAB_UP=0; fi
+  echo
+  strays_report
+  exit "$LAB_UP"
 fi
 
 report "$ROWS" || { echo "Nothing to destroy."; exit 0; }
