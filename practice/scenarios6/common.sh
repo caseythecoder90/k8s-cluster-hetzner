@@ -70,8 +70,14 @@ fingerprint() { local l=$1; shift; $SSH_CP "sudo mkdir -p $COURSE/_check && sudo
 # unchanged <label> <remote files...>  — true if they still match
 unchanged()   { local l=$1; shift; $SSH_CP "[[ \$(cat $* 2>/dev/null | md5sum | cut -d' ' -f1) == \$(cat $COURSE/_check/$l.md5) ]]"; }
 
-# waitdeploy <ns> <deploy> [timeout]  — block until the rollout completes
-waitdeploy() { kubectl -n "$1" rollout status "deploy/$2" --timeout="${3:-120s}" >/dev/null 2>&1; }
+# waitdeploy <ns> <deploy> [timeout]  — block until the rollout completes.
+# A bare number is accepted and read as seconds: kubectl --timeout demands a
+# unit and rejects "90", which would otherwise fail silently behind a || true.
+waitdeploy() {
+  local t="${3:-120s}"
+  [[ "$t" =~ ^[0-9]+$ ]] && t="${t}s"
+  kubectl -n "$1" rollout status "deploy/$2" --timeout="$t" >/dev/null 2>&1
+}
 
 # ---------------------------------------------------------------------------
 # Connectivity probes. Every check drives a real Pod through the real CNI —
