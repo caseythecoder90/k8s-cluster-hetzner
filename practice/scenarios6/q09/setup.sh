@@ -54,4 +54,17 @@ waitdeploy seine analytics
 waitdeploy seine checkout
 waitdeploy seine audit
 
+# The answer needs a peer selector for the DNS pods, and every worked solution
+# assumes kubeadm's label. Print what this cluster actually uses rather than
+# leaving the student to discover a mismatch mid-question.
+dnslabels=$(kubectl -n kube-system get pods -l k8s-app=kube-dns -o name 2>/dev/null | wc -l)
+if [[ "$dnslabels" -gt 0 ]]; then
+  echo "  (DNS pods carry k8s-app=kube-dns — $dnslabels of them; that is the peer label to select)"
+else
+  echo "  !! No pods matched k8s-app=kube-dns in kube-system. This cluster labels its"
+  echo "     DNS pods differently — check before writing the egress rule:"
+  kubectl -n kube-system get pods -l kubernetes.io/name=CoreDNS --show-labels 2>/dev/null \
+    || kubectl -n kube-system get pods --show-labels 2>/dev/null | grep -i dns || true
+fi
+
 echo "READY q09 — seine has checkout+audit clients and payments+analytics Services, no NetworkPolicy yet (everything reaches everything)"
