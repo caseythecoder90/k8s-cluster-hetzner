@@ -86,9 +86,9 @@ Each set holds one directory per exam question: `setup.sh` (pre-creates the
 question's starting state), `TASK.md` (the assignment), `solution.md` (read
 only after attempting), `verify.sh` where applicable.
 
-Four sets so far, all runnable on the same cluster at once (each uses its own
+Six sets so far, all runnable on the same cluster at once (each uses its own
 `/courseN` paths and Namespace family). The two killer.sh rebuilds are
-copyrighted material and stay **gitignored, local-only**; the two original
+copyrighted material and stay **gitignored, local-only**; the four original
 sets are committed:
 
 | Set | What | Namespaces | In git? |
@@ -96,7 +96,15 @@ sets are committed:
 | `scenarios/` | killer.sh attempt 1, rebuilt | planets | no |
 | `scenarios2/` | original set filling attempt 1's topic gaps | planets | yes |
 | `scenarios3/` | killer.sh attempt 2, rebuilt | trees | no |
-| `scenarios4/` | original set, **Helm + Kustomize only** (16 questions) | gemstones | yes |
+| `scenarios4/` | original set, **Helm + Kustomize** (16 questions) | gemstones | yes |
+| `scenarios5/` | original set, **Kustomize only** (16 questions) | metals | yes |
+| `scenarios6/` | original set, **Services / NetworkPolicy / canary + blue-green** (16) | rivers | yes |
+
+Sets 5 and 6 are targeted drills rather than broad mock exams: 5 works through
+every section of `13-memorize-cold.md` (its patch questions are designed to be
+done **twice**, once per patch strategy), and 6 covers the Services &
+Networking domain plus the two release patterns CKAD builds from primitives.
+Each set's own README carries its topic map.
 
 Timed run: pick questions, run their `setup.sh`, start a timer, work in a
 plain SSH session on the control plane like the real exam (not your cozy
