@@ -1,0 +1,72 @@
+# Media processing (architecture section 3): Kafka consumers running libvips and
+# ffmpeg in their own pod so a transcode can never make the api lag. ffmpeg and
+# vips work in an emptyDir scratch space that dies with the pod.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app: worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: worker
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: worker
+          image: ghcr.io/caseythecoder90/caseyas-worker:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: SPRING_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: ours-api
+                  key: SPRING_MONGODB_URI
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx512m -Xms128m"
+            - name: TMPDIR
+              value: /scratch
+          envFrom:
+            # OURS_STORAGE_* (endpoint, public endpoint, bucket, keys) — see the runbook
+            - secretRef:
+                name: ours-storage
+          volumeMounts:
+            - name: scratch
+              mountPath: /scratch
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 30
+      volumes:
+        - name: scratch
+          emptyDir:
+            sizeLimit: 5Gi

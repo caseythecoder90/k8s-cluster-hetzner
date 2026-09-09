@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  labels:
+    app: api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: api
+          image: ghcr.io/caseythecoder90/caseyas-api:latest
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: SPRING_PROFILES_ACTIVE
+              value: prod
+            # Public issuer; discovery hairpins through the Ingress from inside
+            # the cluster (docs/architecture.md section 5).
+            - name: KEYCLOAK_ISSUER_URI
+              value: https://auth.caseylovesyas.com/realms/ours
+            - name: SPRING_MONGODB_URI
+              valueFrom:
+                secretKeyRef:
+                  name: ours-api
+                  key: SPRING_MONGODB_URI
+            - name: OURS_WEB_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: ours-api
+                  key: OURS_WEB_CLIENT_SECRET
+            - name: SPRING_KAFKA_BOOTSTRAP_SERVERS
+              value: kafka:9092
+            - name: JAVA_TOOL_OPTIONS
+              value: "-Xmx512m -Xms128m"
+          envFrom:
+            # OURS_STORAGE_* — R2 endpoint, bucket and keys; see the runbook
+            - secretRef:
+                name: ours-storage
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: http
+            periodSeconds: 30

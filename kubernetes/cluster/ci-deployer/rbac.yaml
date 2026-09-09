@@ -103,3 +103,102 @@ metadata:
   annotations:
     kubernetes.io/service-account.name: ci-deployer
 type: kubernetes.io/service-account-token
+---
+# ours (the caseyas repo). Its CI rolls out frontend, api, and later worker.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: ours
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-deployer
+  namespace: ours
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer
+  namespace: ours
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: ours
+roleRef:
+  kind: Role
+  name: ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-token
+  namespace: ours
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer
+type: kubernetes.io/service-account-token
+---
+# keycloak. The same caseyas CI rolls out the Keycloak image, but only when
+# keycloak/ changed, through a second kubeconfig scoped to this namespace.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ci-deployer
+  namespace: keycloak
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: ci-deployer
+  namespace: keycloak
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["replicasets"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: ci-deployer
+  namespace: keycloak
+subjects:
+  - kind: ServiceAccount
+    name: ci-deployer
+    namespace: keycloak
+roleRef:
+  kind: Role
+  name: ci-deployer
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-deployer-token
+  namespace: keycloak
+  annotations:
+    kubernetes.io/service-account.name: ci-deployer
+type: kubernetes.io/service-account-token
