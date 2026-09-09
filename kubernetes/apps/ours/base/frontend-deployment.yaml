@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: frontend
+          image: ghcr.io/caseythecoder90/caseyas-frontend:latest
+          ports:
+            - name: http
+              containerPort: 80
+          env:
+            # Rendered into the CSP by the nginx image's envsubst step.
+            - name: AUTH_HOST
+              value: auth.caseylovesyas.com
+            # The R2 endpoint host presigned media URLs point at: set this to
+            # <account-id>.r2.cloudflarestorage.com once the bucket exists.
+            - name: MEDIA_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: ours-storage
+                  key: MEDIA_HOST
+          resources:
+            requests:
+              cpu: 25m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+            periodSeconds: 30

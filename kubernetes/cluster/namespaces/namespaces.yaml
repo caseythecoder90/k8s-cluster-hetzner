@@ -18,3 +18,18 @@ metadata:
   name: ingress-nginx
   labels:
     purpose: cluster-infrastructure
+---
+# Keycloak is a platform service: one realm per app, shared identity provider.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: keycloak
+  labels:
+    purpose: cluster-infrastructure
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ours
+  labels:
+    purpose: application-workloads

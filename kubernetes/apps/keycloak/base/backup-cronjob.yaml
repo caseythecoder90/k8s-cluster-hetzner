@@ -1,0 +1,85 @@
+# Nightly Keycloak Postgres dump into the R2 bucket under backup/keycloak/.
+# Losing this database means re-enrolling two authenticators, not losing
+# memories — but back it up anyway (architecture section 13).
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: keycloak-backup
+spec:
+  schedule: "20 7 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: dump
+              image: postgres:17-alpine
+              command:
+                - sh
+                - -c
+                - PGPASSWORD="$POSTGRES_PASSWORD" pg_dump -h postgres -U "$POSTGRES_USER" "$POSTGRES_DB" | gzip > /backup/keycloak-$(date +%Y-%m-%d).sql.gz
+              envFrom:
+                - secretRef:
+                    name: keycloak-db
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          containers:
+            - name: upload
+              image: rclone/rclone:1.68
+              command:
+                - sh
+                - -c
+                - rclone copy /backup "r2:$OURS_STORAGE_BUCKET/backup/keycloak" && echo uploaded
+              env:
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                # "Cloudflare" for R2, "Minio" while the interim MinIO stands in.
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_RCLONE_PROVIDER
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_ENDPOINT
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_ACCESS_KEY
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_SECRET_KEY
+                - name: OURS_STORAGE_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_BUCKET
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          volumes:
+            - name: backup
+              emptyDir: {}

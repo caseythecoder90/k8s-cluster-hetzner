@@ -1,0 +1,89 @@
+# Nightly MongoDB dump into the R2 bucket under backup/mongo/, moved up from
+# milestone 7 to milestone 2 because real data (the Japan bookings) arrives now.
+# The bucket's lifecycle rule expires backup/ objects after 30 days
+# (architecture section 8). An init container dumps, rclone uploads.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: mongo-backup
+spec:
+  schedule: "10 7 * * *" # 07:10 UTC, overnight in NC
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          initContainers:
+            - name: dump
+              image: mongo:8
+              command:
+                - sh
+                - -c
+                - mongodump --uri "$SPRING_MONGODB_URI" --archive --gzip > /backup/mongo-$(date +%Y-%m-%d).gz
+              env:
+                - name: SPRING_MONGODB_URI
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-api
+                      key: SPRING_MONGODB_URI
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          containers:
+            - name: upload
+              image: rclone/rclone:1.68
+              command:
+                - sh
+                - -c
+                - rclone copy /backup "r2:$OURS_STORAGE_BUCKET/backup/mongo" && echo uploaded
+              env:
+                - name: RCLONE_CONFIG_R2_TYPE
+                  value: s3
+                # "Cloudflare" for R2, "Minio" while the interim MinIO stands in.
+                - name: RCLONE_CONFIG_R2_PROVIDER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_RCLONE_PROVIDER
+                - name: RCLONE_CONFIG_R2_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_ENDPOINT
+                - name: RCLONE_CONFIG_R2_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_ACCESS_KEY
+                - name: RCLONE_CONFIG_R2_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_SECRET_KEY
+                - name: OURS_STORAGE_BUCKET
+                  valueFrom:
+                    secretKeyRef:
+                      name: ours-storage
+                      key: OURS_STORAGE_BUCKET
+              volumeMounts:
+                - name: backup
+                  mountPath: /backup
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+          volumes:
+            - name: backup
+              emptyDir: {}

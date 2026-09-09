@@ -1,0 +1,144 @@
+# INTERIM object storage: MinIO standing in for Cloudflare R2 until the R2
+# bucket exists (caseyas docs/milestone-2-runbook.md, "Storage"). Same S3 API,
+# so the api and worker are configured only through the `ours-storage` secret;
+# swapping to R2 means recreating that secret and deleting this file from the
+# kustomization. Nothing in the app knows which one it is talking to.
+#
+# Reachability: the browser PUTs and GETs presigned URLs directly, so MinIO must
+# be reachable from outside. There is no DNS record for a media host, so it is
+# served under the app's own origin: https://ours.caseylovesyas.com/ours/...
+# (path-style, bucket `ours`), see storage-ingress.yaml. SigV4 signs the host and
+# path only, both of which ingress-nginx passes through unchanged.
+#
+# Same-origin also means no CORS policy is needed, and the frontend's CSP
+# MEDIA_HOST is the app host itself.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: minio-data
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 20Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: minio
+  labels:
+    app: minio
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: minio
+  template:
+    metadata:
+      labels:
+        app: minio
+    spec:
+      containers:
+        - name: minio
+          image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+          args: ["server", "/data"]
+          ports:
+            - name: s3
+              containerPort: 9000
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: MINIO_ROOT_PASSWORD
+            # Console disabled: nothing should reach it, and the api never needs it.
+            - name: MINIO_BROWSER
+              value: "off"
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 512Mi
+          readinessProbe:
+            httpGet:
+              path: /minio/health/ready
+              port: s3
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /minio/health/live
+              port: s3
+            initialDelaySeconds: 20
+            periodSeconds: 30
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: minio-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+spec:
+  selector:
+    app: minio
+  ports:
+    - name: s3
+      port: 9000
+      targetPort: s3
+---
+# One-shot: create the `ours` bucket (the same thing docker-compose's
+# minio-init does locally). Safe to re-run; `--ignore-existing` makes it a no-op.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: minio-init
+spec:
+  backoffLimit: 6
+  ttlSecondsAfterFinished: 86400
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: mc
+          image: minio/mc:RELEASE.2025-08-13T08-35-41Z
+          command:
+            - sh
+            - -c
+            - |
+              until mc alias set local http://minio:9000 "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"; do sleep 2; done
+              mc mb --ignore-existing "local/$BUCKET"
+          env:
+            - name: MINIO_ROOT_USER
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: MINIO_ROOT_USER
+            - name: MINIO_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: minio
+                  key: MINIO_ROOT_PASSWORD
+            - name: BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: ours-storage
+                  key: OURS_STORAGE_BUCKET
+          resources:
+            requests:
+              cpu: 20m
+              memory: 32Mi
+            limits:
+              memory: 128Mi
