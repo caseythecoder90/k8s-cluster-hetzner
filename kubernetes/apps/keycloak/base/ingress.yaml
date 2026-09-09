@@ -1,0 +1,38 @@
+# auth.caseylovesyas.com -> keycloak:8080, but only the paths a user or the api
+# needs: realm endpoints (login pages, OIDC, account console) and theme assets.
+# /admin is deliberately absent; the admin console is reached by port-forward.
+#
+# proxy-buffer-size: Keycloak responses carry large headers (several cookies);
+# nginx's 4k default produces "upstream sent too big header" 502s.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: keycloak
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/proxy-buffer-size: "16k"
+    nginx.ingress.kubernetes.io/proxy-body-size: "1m"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - auth.caseylovesyas.com
+      secretName: auth-caseylovesyas-com-tls
+  rules:
+    - host: auth.caseylovesyas.com
+      http:
+        paths:
+          - path: /realms
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  name: http
+          - path: /resources
+            pathType: Prefix
+            backend:
+              service:
+                name: keycloak
+                port:
+                  name: http

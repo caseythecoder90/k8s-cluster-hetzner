@@ -1,0 +1,118 @@
+# Keycloak 26.7 as a platform service. The image is built from keycloak/ in the
+# caseyas repo: `kc.sh build` baked in, realm file under data/import, started with
+# `start --optimized --import-realm`.
+#
+# Hostnames are configuration: KC_HOSTNAME here, OURS_APP_URL in the ours-realm
+# secret (used only at first import). Moving domains touches those, not the image.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: keycloak
+  labels:
+    app: keycloak
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: keycloak
+  template:
+    metadata:
+      labels:
+        app: keycloak
+    spec:
+      imagePullSecrets:
+        - name: ghcr-pull
+      containers:
+        - name: keycloak
+          image: ghcr.io/caseythecoder90/caseyas-keycloak:latest
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: management
+              containerPort: 9000
+          env:
+            # --- database ---------------------------------------------------
+            # POSTGRES_DB must be declared BEFORE KC_DB_URL: Kubernetes only
+            # expands $(VAR) for variables defined earlier in the same list.
+            # With the order reversed Keycloak connected to a database literally
+            # named "$(POSTGRES_DB)" and crash-looped (found live, 2026-09-08).
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db
+                  key: POSTGRES_DB
+            - name: KC_DB_URL
+              value: jdbc:postgresql://postgres:5432/$(POSTGRES_DB)
+            - name: KC_DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db
+                  key: POSTGRES_USER
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-db
+                  key: POSTGRES_PASSWORD
+            # --- hostname and proxy ----------------------------------------
+            # TLS ends at ingress-nginx; Keycloak speaks plain HTTP inside the
+            # cluster and trusts X-Forwarded-* from the ingress.
+            - name: KC_HOSTNAME
+              value: https://auth.caseylovesyas.com
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            - name: KC_PROXY_HEADERS
+              value: xforwarded
+            # In-cluster callers may use the Service URL for token/JWKS calls
+            # while the issuer stays the public hostname.
+            - name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC
+              value: "true"
+            # The admin console is not routed through the Ingress. It is reached
+            # with `kubectl port-forward deploy/keycloak 8080:8080`; this makes
+            # the console's own links point at the forwarded address.
+            # Verify during milestone 1 (docs/architecture.md section 12).
+            - name: KC_HOSTNAME_ADMIN
+              value: http://localhost:8080
+            # --- sizing -----------------------------------------------------
+            - name: JAVA_OPTS_KC_HEAP
+              value: "-Xms64m -Xmx400m"
+            # --- first boot only -------------------------------------------
+            # Remove both after creating the permanent admin (keycloak/README.md).
+            - name: KC_BOOTSTRAP_ADMIN_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap
+                  key: KC_BOOTSTRAP_ADMIN_USERNAME
+                  optional: true
+            - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-bootstrap
+                  key: KC_BOOTSTRAP_ADMIN_PASSWORD
+                  optional: true
+          # Realm placeholders: OURS_APP_URL, OURS_WEB_CLIENT_SECRET, users.
+          envFrom:
+            - secretRef:
+                name: ours-realm
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 1Gi
+          # Health lives on the management port, never exposed outside the pod.
+          startupProbe:
+            httpGet:
+              path: /health/started
+              port: management
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: management
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: management
+            periodSeconds: 30

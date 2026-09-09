@@ -1,0 +1,38 @@
+# INTERIM, goes with minio.yaml: exposes the MinIO bucket under the app's own
+# origin so presigned URLs work from the browser without a media DNS record.
+#
+#   https://ours.caseylovesyas.com/ours/<key>  ->  minio:9000  (bucket `ours`)
+#
+# A second Ingress on the same host so this path can carry its own annotations:
+# uploads go straight here, so the body limit is large and request buffering is
+# off (nginx would otherwise spool a whole video to disk before forwarding it).
+# The TLS secret is the one cert-manager already maintains for the main Ingress;
+# no cluster-issuer annotation here, or two Certificates would fight over it.
+#
+# Delete this file with minio.yaml once R2 takes over.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: ours-storage
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: "2g"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ours.caseylovesyas.com
+      secretName: ours-caseylovesyas-com-tls
+  rules:
+    - host: ours.caseylovesyas.com
+      http:
+        paths:
+          - path: /ours
+            pathType: Prefix
+            backend:
+              service:
+                name: minio
+                port:
+                  name: s3
