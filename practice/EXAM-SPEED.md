@@ -3,6 +3,9 @@
 Time, not knowledge, is what most people fail on. This is the decision tree
 for "how do I change this thing" plus the commands worth memorizing cold.
 
+For the other half of the exam — questions graded on a file you write, not on
+cluster state (awk/sed/grep/base64/vim) — see `EXAM-LINUX.md`.
+
 ## Shell setup (already in your lab; the exam gives you the same)
 
 ```bash
