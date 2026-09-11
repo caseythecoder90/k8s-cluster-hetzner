@@ -4,6 +4,10 @@ Same reasoning as Exam Set 1's q11 (`../../scenarios/q11/TASK.md`): no Docker
 daemon or private registry on this containerd-based lab. Different specifics
 here so you drill a wider slice of the same command family.
 
+**You can drill these for real now:** `practice/docker/` runs ten questions of
+this shape against Docker Desktop on your own machine, with a throwaway private
+registry — plus a one-page study sheet at `practice/docker/CHEATSHEET.md`.
+
 ## The task (as asked)
 
 Files to build an image are at `/course2/11/image` on the exam host. A

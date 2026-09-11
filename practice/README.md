@@ -110,6 +110,22 @@ Timed run: pick questions, run their `setup.sh`, start a timer, work in a
 plain SSH session on the control plane like the real exam (not your cozy
 local terminal).
 
+### Docker drills — the one set that isn't on the lab
+
+`docker/` holds ten questions and a one-page study sheet on building and moving
+container **images**, and it runs against Docker Desktop on your own machine
+instead of the cluster. That's not a shortcut: this lab (like every kubeadm
+node) runs containerd and has no Docker daemon, which is exactly why
+`scenarios/q11` and `scenarios2/q11` are study cards rather than runnable
+questions. The exam's build host does have Docker, and so does your laptop.
+
+```bash
+cd practice/docker && ./setup-all.sh && cat TASKS-ALL.md
+```
+
+It creates only `ckad-*` containers and images, and its `cleanup.sh` never runs
+`docker system prune` — see `docker/README.md`.
+
 ## A second lab next to the first (optional)
 
 The Terraform config is workspace-aware: every workspace other than
