@@ -11,6 +11,15 @@ metadata:
   name: grindtrack
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    # The assistant answers over server-sent events, which a buffering proxy would collect and
+    # deliver in one piece at the end — the stream would appear to work and simply never stream.
+    # ingress-nginx already defaults proxy-buffering to off; this says so out loud so a future
+    # ConfigMap change cannot turn it back on underneath us. The app also sends
+    # X-Accel-Buffering: no on that response, so neither half is load-bearing alone.
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    # A turn may take minutes if the model reads a lot. The default 60s would cut the connection
+    # mid-answer; the app's own emitter gives up at 300s, so match it rather than exceed it.
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
 spec:
   ingressClassName: nginx
   tls:
