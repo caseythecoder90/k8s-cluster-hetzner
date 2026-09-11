@@ -56,6 +56,18 @@ spec:
                 secretKeyRef:
                   name: grindtrack-secrets
                   key: GRINDTRACK_PASSWORD
+            # The assistant. Unlike every other secret here, a missing value is not a broken
+            # deployment: the app treats a blank key as "the AI features are switched off", the
+            # endpoints answer 503 with a sentence, and everything else works. So this reference
+            # can exist before the key does — but note the key must be IN the Secret before the
+            # pod starts, because env vars are resolved once at container start.
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: ANTHROPIC_API_KEY
+                  # Without this the pod will not start until the key exists.
+                  optional: true
             # Behind TLS at the ingress, same as behind the old edge proxy
             - name: COOKIE_SECURE
               value: "true"
