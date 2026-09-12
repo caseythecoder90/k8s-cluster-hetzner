@@ -68,6 +68,28 @@ spec:
                   key: ANTHROPIC_API_KEY
                   # Without this the pod will not start until the key exists.
                   optional: true
+            # Web Push. The VAPID pair identifies the app to the push services; without it push is
+            # off in the same quiet way the assistant is without its key. Both halves are made
+            # once with the one-liner in grindtrack's docs/push-notifications.md and patched into
+            # the secret; rotating them invalidates every phone's subscription.
+            - name: PUSH_VAPID_PUBLIC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: PUSH_VAPID_PUBLIC_KEY
+                  optional: true
+            - name: PUSH_VAPID_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: PUSH_VAPID_PRIVATE_KEY
+                  optional: true
+            - name: PUSH_VAPID_SUBJECT
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: PUSH_VAPID_SUBJECT
+                  optional: true
             # Behind TLS at the ingress, same as behind the old edge proxy
             - name: COOKIE_SECURE
               value: "true"
