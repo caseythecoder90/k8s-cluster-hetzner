@@ -90,6 +90,14 @@ spec:
                   name: grindtrack-secrets
                   key: PUSH_VAPID_SUBJECT
                   optional: true
+            # Speech to text in the ask box: the relay's key for the transcription model. Optional
+            # like the others; without it the mic button is not rendered.
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: OPENAI_API_KEY
+                  optional: true
             # Behind TLS at the ingress, same as behind the old edge proxy
             - name: COOKIE_SECURE
               value: "true"
