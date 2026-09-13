@@ -98,6 +98,15 @@ spec:
                   name: grindtrack-secrets
                   key: OPENAI_API_KEY
                   optional: true
+            # The sobriety date, YYYY-MM-DD, so the morning's line can say which day it is. In
+            # the Secret rather than this file because the repository is public and the date is
+            # personal. Optional: without it the assistant's context has no recovery section.
+            - name: SOBRIETY_DATE
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: SOBRIETY_DATE
+                  optional: true
             # Behind TLS at the ingress, same as behind the old edge proxy
             - name: COOKIE_SECURE
               value: "true"
