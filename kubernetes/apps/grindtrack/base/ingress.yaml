@@ -20,10 +20,11 @@ metadata:
     # A turn may take minutes if the model reads a lot. The default 60s would cut the connection
     # mid-answer; the app's own emitter gives up at 300s, so match it rather than exceed it.
     nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
-    # The recovery tab's book import sends the publisher's PDFs in one request — the whole
-    # Big Book is about 3 MB, over ingress-nginx's 1m default, which answered 413 before the
-    # app saw a byte. 16m matches spring.servlet.multipart.max-request-size in the app.
-    nginx.ingress.kubernetes.io/proxy-body-size: "16m"
+    # A video clip for the chat is up to 100 MB, and the recovery tab's book import sends the
+    # publisher's PDFs in one request; ingress-nginx's 1m default answered 413 before the app
+    # saw a byte. 110m matches spring.servlet.multipart.max-request-size in the app (a clip
+    # and its poster in one request).
+    nginx.ingress.kubernetes.io/proxy-body-size: "110m"
 spec:
   ingressClassName: nginx
   tls:
