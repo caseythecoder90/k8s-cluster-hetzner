@@ -98,6 +98,33 @@ spec:
                   name: grindtrack-secrets
                   key: OPENAI_API_KEY
                   optional: true
+            # Photos and video in the chat: an S3-compatible bucket (Hetzner Object Storage,
+            # nbg1, next to the cluster) reached with the AWS SDK. Optional like the others;
+            # without the four the attach button is not rendered and uploads answer 503.
+            - name: MEDIA_S3_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: MEDIA_S3_ENDPOINT
+                  optional: true
+            - name: MEDIA_S3_BUCKET
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: MEDIA_S3_BUCKET
+                  optional: true
+            - name: MEDIA_S3_ACCESS_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: MEDIA_S3_ACCESS_KEY
+                  optional: true
+            - name: MEDIA_S3_SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: grindtrack-secrets
+                  key: MEDIA_S3_SECRET_KEY
+                  optional: true
             # The sobriety date, YYYY-MM-DD, so the morning's line can say which day it is. In
             # the Secret rather than this file because the repository is public and the date is
             # personal. Optional: without it the assistant's context has no recovery section.
