@@ -139,22 +139,31 @@ spec:
               value: "true"
             - name: JAVA_TOOL_OPTIONS
               value: "-Xmx256m -Xms64m"
+          # The heap is capped at 256Mi above; the rest is metaspace, threads, the JVM's own
+          # mapped files and the page cache the kernel counts against the container. With the
+          # chat's S3 client aboard the container idles at ~400Mi, and at 512Mi the first upload
+          # pushed it to the edge: no OOM kill, but the kernel's reclaim stalled the JVM long
+          # enough to miss three liveness probes, and the kubelet restarted a healthy app.
           resources:
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 384Mi
             limits:
-              memory: 512Mi
-          # Same endpoint the compose healthcheck used
+              memory: 768Mi
+          # Same endpoint the compose healthcheck used. The default timeout is one second, which a
+          # JVM under memory pressure or a full GC misses without being unhealthy; five is still
+          # far below a hung app.
           readinessProbe:
             httpGet:
               path: /api/public/stats
               port: http
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
           livenessProbe:
             httpGet:
               path: /api/public/stats
               port: http
             initialDelaySeconds: 60
             periodSeconds: 30
+            timeoutSeconds: 5
